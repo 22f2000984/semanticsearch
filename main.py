@@ -3,9 +3,17 @@ import numpy as np
 import httpx
 from fastapi import FastAPI
 from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
 from sklearn.metrics.pairwise import cosine_similarity
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["OPTIONS", "POST"],
+    allow_headers=["*"],
+)
 
 # -----------------------------
 # Mock data: 72 news documents
