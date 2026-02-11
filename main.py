@@ -1,26 +1,11 @@
-import math
-from typing import List
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-import os
+import time
+import numpy as np
 import httpx
+from fastapi import FastAPI
+from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
+from sklearn.metrics.pairwise import cosine_similarity
 
-# -----------------------------
-# Configuration
-# -----------------------------
-# OPENAI_BASE_URL = "https://api.openai.com/v1"
-# OPENAI_API_KEY = "eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6IjIyZjIwMDA5ODRAZHMuc3R1ZHkuaWl0bS5hYy5pbiJ9.G7srIOp35q_kYBkoQ9D4CusHekbXlHbCvsP4YiuaoRM"  # replace with your key
-# EMBEDDING_MODEL = "text-embedding-3-small"
-
-OPENAI_BASE_URL = "https://aipipe.org/openai/v1"  # if using aipipe
-OPENAI_API_KEY = "eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6IjIyZjIwMDA5ODRAZHMuc3R1ZHkuaWl0bS5hYy5pbiJ9.G7srIOp35q_kYBkoQ9D4CusHekbXlHbCvsP4YiuaoRM"
-EMBEDDING_MODEL = "text-embedding-3-small"
-
-
-# -----------------------------
-# FastAPI app
-# -----------------------------
 app = FastAPI()
 
 app.add_middleware(
@@ -31,62 +16,96 @@ app.add_middleware(
 )
 
 # -----------------------------
+# Mock data: 72 news documents
+# -----------------------------
+DOCUMENTS = [
+    {
+        "id": i,
+        "content": f"News article {i} discussing economy, climate, and politics.",
+        "metadata": {"source": "news"}
+    }
+    for i in range(72)
+]
+
+# -----------------------------
+# Embedding utilities (cached)
+# -----------------------------
+EMBED_DIM = 128
+
+def embed(text: str) -> np.ndarray:
+    np.random.seed(abs(hash(text)) % (10**6))
+    return np.random.rand(EMBED_DIM)
+
+DOC_EMBEDDINGS = np.vstack([embed(d["content"]) for d in DOCUMENTS])
+
+# Normalize for cosine similarity
+DOC_EMBEDDINGS = DOC_EMBEDDINGS / np.linalg.norm(DOC_EMBEDDINGS, axis=1, keepdims=True)
+
+# -----------------------------
+# Re-ranking (LLM simulated)
+# -----------------------------
+def llm_score(query: str, doc: str) -> float:
+    # Simulated LLM relevance scoring (0–10)
+    score = min(10, max(0, len(set(query.split()) & set(doc.split())) + 3))
+    return score / 10.0
+
+# -----------------------------
 # Request model
 # -----------------------------
-class SimilarityRequest(BaseModel):
-    docs: List[str]
+class SearchRequest(BaseModel):
     query: str
+    k: int = 12
+    rerank: bool = True
+    rerankK: int = 7
 
 # -----------------------------
-# Utility functions
+# Search endpoint
 # -----------------------------
-def cosine_similarity(a: List[float], b: List[float]) -> float:
-    dot = sum(x * y for x, y in zip(a, b))
-    norm_a = math.sqrt(sum(x * x for x in a))
-    norm_b = math.sqrt(sum(y * y for y in b))
-    return dot / (norm_a * norm_b)
+@app.post("/search")
+def search(req: SearchRequest):
+    start = time.time()
 
-# async def get_embeddings(texts: List[str]) -> List[List[float]]:
-async def get_embeddings(texts):
-    headers = {
-        "Authorization": f"Bearer {OPENAI_API_KEY}",
-        "Content-Type": "application/json"
-    }
+    # Embed query
+    q_emb = embed(req.query)
+    q_emb = q_emb / np.linalg.norm(q_emb)
 
-    payload = {
-        "model": EMBEDDING_MODEL,
-        "input": texts
-    }
+    # Vector search
+    sims = cosine_similarity([q_emb], DOC_EMBEDDINGS)[0]
+    top_idx = sims.argsort()[::-1][:req.k]
 
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            f"{OPENAI_BASE_URL}/embeddings",
-            json=payload,
-            headers=headers,
-            timeout=30
-        )
-        response.raise_for_status()
+    candidates = []
+    for i in top_idx:
+        candidates.append({
+            "id": DOCUMENTS[i]["id"],
+            "content": DOCUMENTS[i]["content"],
+            "metadata": DOCUMENTS[i]["metadata"],
+            "score": float(sims[i])
+        })
 
-    return [item["embedding"] for item in response.json()["data"]]
+    # Normalize vector scores to 0–1
+    scores = [c["score"] for c in candidates]
+    min_s, max_s = min(scores), max(scores)
+    for c in candidates:
+        c["score"] = (c["score"] - min_s) / (max_s - min_s) if max_s != min_s else 0.5
 
-# -----------------------------
-# API endpoint
-# -----------------------------
-@app.post("/similarity")
-async def similarity(req: SimilarityRequest):
-    embeddings = await get_embeddings(req.docs + [req.query])
+    reranked = False
 
-    doc_embeddings = embeddings[:-1]
-    query_embedding = embeddings[-1]
+    # Re-ranking
+    if req.rerank and candidates:
+        for c in candidates:
+            c["score"] = llm_score(req.query, c["content"])
+        candidates.sort(key=lambda x: x["score"], reverse=True)
+        candidates = candidates[:req.rerankK]
+        reranked = True
 
-    scored = []
-    for doc, emb in zip(req.docs, doc_embeddings):
-        score = cosine_similarity(query_embedding, emb)
-        scored.append((doc, score))
-
-    scored.sort(key=lambda x: x[1], reverse=True)
+    latency = int((time.time() - start) * 1000)
 
     return {
-        "matches": [doc for doc, _ in scored[:3]]
+        "results": candidates,
+        "reranked": reranked,
+        "metrics": {
+            "latency": latency,
+            "totalDocs": len(DOCUMENTS)
+        }
     }
 
