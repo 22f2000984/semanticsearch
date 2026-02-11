@@ -3,14 +3,20 @@ from typing import List
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+import os
 import httpx
 
 # -----------------------------
 # Configuration
 # -----------------------------
-OPENAI_BASE_URL = "https://api.openai.com/v1"
-OPENAI_API_KEY = "eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6IjIyZjIwMDA5ODRAZHMuc3R1ZHkuaWl0bS5hYy5pbiJ9.G7srIOp35q_kYBkoQ9D4CusHekbXlHbCvsP4YiuaoRM"  # replace with your key
+# OPENAI_BASE_URL = "https://api.openai.com/v1"
+# OPENAI_API_KEY = "eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6IjIyZjIwMDA5ODRAZHMuc3R1ZHkuaWl0bS5hYy5pbiJ9.G7srIOp35q_kYBkoQ9D4CusHekbXlHbCvsP4YiuaoRM"  # replace with your key
+# EMBEDDING_MODEL = "text-embedding-3-small"
+
+OPENAI_BASE_URL = "https://aipipe.org/openai/v1"  # if using aipipe
+OPENAI_API_KEY = os.getenv("eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6IjIyZjIwMDA5ODRAZHMuc3R1ZHkuaWl0bS5hYy5pbiJ9.G7srIOp35q_kYBkoQ9D4CusHekbXlHbCvsP4YiuaoRM")
 EMBEDDING_MODEL = "text-embedding-3-small"
+
 
 # -----------------------------
 # FastAPI app
