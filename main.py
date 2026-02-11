@@ -9,7 +9,7 @@ import httpx
 # Configuration
 # -----------------------------
 OPENAI_BASE_URL = "https://api.openai.com/v1"
-OPENAI_API_KEY = "YOUR_API_KEY_HERE"  # replace with your key
+OPENAI_API_KEY = "eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6IjIyZjIwMDA5ODRAZHMuc3R1ZHkuaWl0bS5hYy5pbiJ9.G7srIOp35q_kYBkoQ9D4CusHekbXlHbCvsP4YiuaoRM"  # replace with your key
 EMBEDDING_MODEL = "text-embedding-3-small"
 
 # -----------------------------
