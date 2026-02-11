@@ -46,7 +46,8 @@ def cosine_similarity(a: List[float], b: List[float]) -> float:
     norm_b = math.sqrt(sum(y * y for y in b))
     return dot / (norm_a * norm_b)
 
-async def get_embeddings(texts: List[str]) -> List[List[float]]:
+# async def get_embeddings(texts: List[str]) -> List[List[float]]:
+async def get_embeddings(texts):
     headers = {
         "Authorization": f"Bearer {OPENAI_API_KEY}",
         "Content-Type": "application/json"
